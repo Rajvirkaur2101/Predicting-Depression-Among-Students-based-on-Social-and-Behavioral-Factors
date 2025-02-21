@@ -1,0 +1,1202 @@
+---
+title: "Predicting Depression Among Students based on Social and Behavioral Factors"
+author: "Marcelino Rodriguez, Rajvir Kaur, Nyadual Makuach, Asiah Zibrila"
+date: "2025-02-18"
+output:
+  pdf_document:
+    latex_engine: xelatex
+  html_document:
+    df_print: paged
+header-includes:
+  - \usepackage{amsmath}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Libraries needed
+library(dplyr)
+library(ggplot2)
+library(caret)
+library(sampling)
+library(car)
+library(MASS)
+library(smotefamily)
+
+#Tree
+library(randomForest)
+library(AppliedPredictiveModeling)
+library(rpart)
+library(rpart.plot)
+library(tree)
+```
+
+```{r}
+# load original Table
+depression_dataset <- read.csv('Student Depression Dataset.csv')
+```
+
+# 1. Introduction
+
+Mental health is a critical yet often overlooked aspect of well-being. Ignoring mental health challenges does not eliminate their impact; rather, it exacerbates conditions such as depression, which is frequently linked to substance abuse, unhealthy lifestyle habits, and chronic illnesses. Major life stressors—such as bereavement, trauma, divorce, and lack of social support—are significant triggers for depression, as highlighted by the Cleveland Clinic. With depression cases rising globally, understanding its underlying causes and contributing factors is essential for effective prevention and intervention.
+
+Depression is sometimes dismissed as a temporary phase, particularly among young people, leading to its minimization and lack of proper intervention. However, untreated depression can have severe consequences, including self-harm and suicide. At the same time, greater societal awareness and normalization of mental health discussions can facilitate early detection and treatment, provided that contributing factors are well understood.
+
+In this study, we focus on how various socio-economic, lifestyle, and health-related factors influence depression among students. Academic pressure, financial instability, and personal health history can significantly affect mental well-being, potentially leading to declining academic performance and worsening psychological distress.
+This project is structured into three main sections: data preparation, exploratory analysis, and model development. The first phase involves cleaning the dataset by removing irrelevant variables and handling missing data. The second phase uses exploratory data analysis (EDA) to identify patterns and group students based on shared characteristics. This helps in understanding potential risk factors and their impact on mental health. Finally, the third phase involves developing a predictive model that examines relationships between socio-economic, lifestyle, and mental health variables. The goal is to create a tool that can help identify individuals at risk of depression and provide insights for targeted interventions. 
+
+## Research Questions:
+
+This analysis aims to explore the key factors influencing student depression, particularly focusing on academic pressure, lifestyle habits, financial stress, and family history of mental illness. By analyzing these factors, the research seeks to uncover patterns that contribute to depression among students. Additionally, the study investigates the potential for predictive modeling to identify students at higher risk of developing depression.
+
+## Research Questions
+
+### 1. Academic Pressure & Mental Health
+- How does academic pressure affect student mental health?
+
+### 2. Lifestyle Factors & Depression
+- Is there a relationship between sleep duration and depression?
+
+### 3. Stress & Mental Well-being
+- How strongly does financial stress impact depression in students?
+
+### 4. Family & Mental Health History
+- Does having a family history of mental illness increase the risk of depression?
+
+### 5. Predictive Modeling & Insights
+- How can we predict student depression using machine learning?
+
+## Dataset Cleaning and preprocessing:
+The dataset for this project, obtained from Kaggle, contains comprehensive information on individuals' personal and lifestyle factors. It is structured to facilitate analysis in health, lifestyle, and socio-economic contexts.
+
+### Handle missing values:
+
+```{r}
+sum(is.na(depression_dataset))  # Count missing values
+data <- na.omit(depression_dataset)  # Remove rows with missing values
+```
+
+```{r}
+str(depression_dataset)
+```
+
+### Rename the columns:
+
+```{r}
+colnames(depression_dataset)[colnames(depression_dataset) == "Academic.Pressure"] ="Academic_Pressure"
+colnames(depression_dataset)[colnames(depression_dataset) == "Study.Satisfaction"] ="Study_Satisfaction"
+colnames(depression_dataset)[colnames(depression_dataset) == "Sleep.Duration"] ="Sleep_Duration"
+colnames(depression_dataset)[colnames(depression_dataset) == "Dietary.Habits"] ="Dietary_Habits"
+colnames(depression_dataset)[colnames(depression_dataset) == "Financial.Stress"] ="Financial_stress"
+```
+
+```{r}
+head(depression_dataset)
+```
+
+## Cleaned dataset 
+The final dataset consists of 27,856 rows, where each row represents an independent student. It contains 12 columns, each with distinct attributes and data types. 
+
+```{r}
+depression_dataset_cleaned <- read.csv('final_dataset_depression.csv')
+depression_dataset_copy <- depression_dataset_cleaned
+```
+
+```{r}
+str(depression_dataset_cleaned)
+dim(depression_dataset_cleaned)
+```
+
+```{r}
+depression_dataset_cleaned <- read.csv('final_dataset_depression.csv')
+depression_dataset_copy <- depression_dataset_cleaned
+```
+
+```{r}
+str(depression_dataset_cleaned)
+dim(depression_dataset_cleaned)
+colnames(depression_dataset_cleaned)
+```
+
+
+# 2. Exploratory Data Analysis (EDA)
+The exploratory data analysis (EDA) aims to examine the underlying structure of the dataset and identify potential patterns or trends. This process provides valuable insights into the relationships between variables and helps uncover factors contributing to specific outcomes. Recognizing these patterns can enhance our understanding of the events occurring within the dataset. Even if direct causal relationships are not established, EDA can offer important insights that may help mitigate risk factors and inform data-driven decision-making.
+This analysis focuses on key variables related to socio-economic status, lifestyle habits, and mental health, exploring their interactions and potential impact on student well-being.
+
+
+**Depression Distribution**
+```{r}
+Depression_Distribution <- table(depression_dataset_cleaned$Depression)
+Depression_Distribution
+```
+
+```{r}
+# Plot the pie chart
+pie(Depression_Distribution, main="Depression Cases",
+    col=rainbow(length(Depression_Distribution)),
+    labels=paste(names(Depression_Distribution), ": ", Depression_Distribution, sep=""))
+```
+
+**Convert categorical variables to factors**
+```{r}
+# Convert categorical variables to factors
+depression_dataset_cleaned$Gender <- as.factor(depression_dataset_cleaned$Gender)
+depression_dataset_cleaned$Academic_Pressure <- as.factor(depression_dataset_cleaned$Academic_Pressure)
+depression_dataset_cleaned$Study_Satisfaction <- as.factor(depression_dataset_cleaned$Study_Satisfaction)
+depression_dataset_cleaned$Sleep_Duration <- as.factor(depression_dataset_cleaned$Sleep_Duration)
+depression_dataset_cleaned$Fam_Mental_Hist <- as.factor(depression_dataset_cleaned$Fam_Mental_Hist)
+depression_dataset_cleaned$Financial_stress <- as.factor(depression_dataset_cleaned$Financial_stress)
+depression_dataset_cleaned$Dietary_Habits <- as.factor(depression_dataset_cleaned$Dietary_Habits)
+depression_dataset_cleaned$Suicidal_Thoughts <- as.factor(depression_dataset_cleaned$Suicidal_Thoughts)
+depression_dataset_cleaned$Age_Group <- as.factor(depression_dataset_cleaned$Age_Group)
+#depression_dataset_cleaned$Depression <- factor(depression_dataset_cleaned$Depression, levels = c(0, 1), labels = c('No', 'Yes'))
+```
+
+```{r}
+#head(depression_dataset_cleaned)
+```
+
+**Gender Distribution**
+```{r}
+male_female_Distribution <- table(depression_dataset_cleaned$Gender)
+male_female_Distribution
+
+# Plot the pie chart
+pie(male_female_Distribution, main="Gender's Distribution",
+    col=rainbow(length(male_female_Distribution)),
+    labels=paste(names(male_female_Distribution), ": ", male_female_Distribution, sep=""))
+
+# Adding a legend (optional)
+legend("topright", legend=names(male_female_Distribution), fill=rainbow(length(male_female_Distribution)))
+```
+
+
+**Positive Cases Female/Male**
+```{r}
+#Positive Distribution
+male_female_Positive_cases <- depression_dataset_cleaned[depression_dataset_cleaned$Depression == 'Yes', ]
+male_female_Distribution_Positive <-  table(male_female_Positive_cases$Gender)
+#Negative Distribution
+male_female_Negative_cases <- depression_dataset_cleaned[depression_dataset_cleaned$Depression == 'No', ]
+male_female_Distribution_negative <-  table(male_female_Negative_cases$Gender)
+
+
+# Plot the pie chart
+pie(male_female_Distribution_Positive, main="Gender's Distribution",
+    col=rainbow(length(male_female_Distribution_Positive)),
+    labels=paste(names(male_female_Distribution_Positive), ": ", male_female_Distribution_Positive, sep=""))
+
+# Adding a legend (optional)
+legend("topright", legend=names(male_female_Distribution), fill=rainbow(length(male_female_Distribution_Positive)))
+```
+
+
+# Lifestyle Factors
+In this section the analysis will be based in 4 different groups to understand how the factor influence depression in students. The analysis has been done using charts.
+
+**Lifestyle Factors**
+```{r}
+# Group the data by Gender and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Gender, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Gender, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Gender',
+       x = 'Gender',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+#####################
+# Group the data by Diet and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Dietary_Habits, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Dietary_Habits, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count),position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Dietary Habits',
+       x = 'Dietary Habits',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+
+#####################
+# Group the data by Sleep and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Sleep_Duration, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Sleep_Duration, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Sleep Duration',
+       x = 'Sleep Duration',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+#####################
+# Group the data by Age Group and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Age_Group, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Age_Group, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Age Groups',
+       x = 'Age Group',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+```
+
+The above results indicated that:
+
+### Diet and Depression
+- Students with unhealthy dietary habits are more likely to be diagnosed with depression. This aligns with research suggesting that poor nutrition can negatively impact mental health.
+
+### Sleep Duration and Depression
+- Students who sleep less than five hours per night have a higher likelihood of experiencing depression. Sleep deprivation has been widely linked to increased stress, anxiety, and mood disorders.
+
+### Age and Depression Risk
+- Most students in the dataset are under the age of 38, and within this age group, depression is more prevalent. This may indicate that younger students, who often face significant academic and career pressures, are at greater risk.
+
+### Gender and Depression
+- Since the dataset contains a higher proportion of male students, the findings suggest that males are more likely to be diagnosed with depression. This supports earlier observations regarding gender differences in emotional expression and coping mechanisms.
+
+
+# Stress & Mental Well-being Factors
+In this section the analysis will be based on 4 different groups to understand how the factor influence depression in students. The analysis has been done using charts.
+
+**Stress Factors**
+```{r}
+# Group the data by Gender and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Financial_stress, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Financial_stress, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count),position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Financial stress',
+       x = 'Financial stress',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+
+#####################
+# Group the data by Academic Pres and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Academic_Pressure, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Academic_Pressure, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 3.5) +
+  labs(title = 'Total Cases of Depression by Academic Pressure',
+       x = 'Academic_Pressure',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+
+
+#####################
+# Group the data by Study Hours  and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Study_Hours, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Study_Hours, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+  labs(title = 'Total Cases of Depression by Study Hours',
+       x = 'Study Hours',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+#####################
+# Group the data by StudySatisfaction  and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Study_Satisfaction, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Study_Satisfaction, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+  labs(title = 'Total Cases of Depression by Study Satisfaction',
+       x = 'Study Satisfaction',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+```
+
+The above results indicated that:
+
+### Academic Pressure and Depression
+- Students who experience higher levels of academic pressure are more likely to be diagnosed with depression. This suggests that excessive academic demands can negatively impact mental health.
+
+### Financial Stress and Depression
+- Students who face financial stress have a higher likelihood of depression. Financial instability can contribute to anxiety, uncertainty, and increased psychological distress.
+
+### Study Hours and Depression
+- Students who dedicate longer hours to studying are more prone to depression. However, an interesting trend emerges after 10 hours of study per day, depression diagnoses decrease. This could be due to a smaller number of students studying for extended hours, or it may indicate that extremely dedicated students have better coping mechanisms.
+
+### Study Satisfaction and Depression
+- Students with low study satisfaction are more likely to be diagnosed with depression. A negative academic experience, including dissatisfaction with coursework or career prospects, may contribute to mental health struggles.
+
+
+# Mental Health-Factors
+In this section the analysis will be based in 2 different groups to understand how the factor influence depression in students. The analysis has been done using charts.
+
+**Mental Health Factors**
+```{r}
+# Group the data by Suicidal and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Suicidal_Thoughts, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Suicidal_Thoughts, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+  labs(title = 'Total Cases of Depression by Suicidal Thoughts',
+       x = 'Suicidal_Thoughts',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+
+
+#####################
+# Group the data by Family Mental and Depression
+grouped_data <- depression_dataset_cleaned %>%
+  group_by(Fam_Mental_Hist, Depression) %>%
+  summarise(Count = n()) %>%
+  ungroup()
+
+# Plot the bar chart
+ggplot(grouped_data, aes(x = Fam_Mental_Hist, y = Count, fill = as.factor(Depression))) +
+  geom_bar(stat = 'identity', position = position_dodge()) +
+  geom_text(aes(label=Count), position = position_dodge(width = 0.9), vjust = -0.5, size = 2.5) +
+  labs(title = 'Total Cases of Depression by Family with Mental Health History',
+       x = 'Family with Mental Health History',
+       y = 'Count',
+       fill = 'Depression') +
+  scale_fill_manual(values = c('No' = '#F8766D', 'Yes' = '#00BA38'))
+
+```
+The above results indicated that:
+
+### Suicidal Thoughts and Depression
+- Students who report having suicidal thoughts are significantly more likely to be diagnosed with depression. This finding reinforces the strong link between depression and suicidal ideation, emphasizing the need for early mental health interventions.
+
+### Family History of Mental Health Disorders and Depression
+- Students with a family history of mental illness are slightly more likely to be diagnosed with depression. This suggests a potential genetic or environmental influence, where individuals with close relatives experiencing mental health disorders may be at a higher risk themselves.
+
+
+
+# 3. Statistical Analysis
+
+In this section, the dataset has been structured and prepared for model selection. Key data elements were previously analyzed and are summarized below as a reference:
+
+- **Total students:** 27,856  
+- **Total positive depression cases:** 16,311  
+- **Total negative depression cases:** 11,545  
+- **Total male students:** 15,523  
+  - **Positive cases (male):** 9,102  
+  - **Negative cases (male):** 6,421  
+- **Total female students:** 12,333  
+  - **Positive cases (female):** 7,209  
+  - **Negative cases (female):** 5,124  
+  
+```{r}
+#total of Students Cases
+total_of_students <- nrow(depression_dataset_cleaned)
+total_of_positive_cases <- Depression_Distribution[2] #No
+total_of_negative_cases <- Depression_Distribution[1] #Yes
+## Total of Males Cases
+total_of_Male_Students          <- male_female_Distribution['Male']
+total_of_Positive_Male_Students <- male_female_Distribution_Positive['Male']
+total_of_negative_Male_student  <- male_female_Distribution_negative['Male']
+# Total of Females Cases
+total_of_Female_Students           <- male_female_Distribution['Female']
+total_of_Positive_Female_Students  <- male_female_Distribution_Positive['Female']
+total_of_negative_Female_student   <- male_female_Distribution_negative['Female']
+```
+
+```{r}
+# Cases Summary
+cases_data <- data.frame(
+  Category = c("Total of Cases","Total Positive Cases", "Total Negative Cases", 
+               "Total Male Students", "Positive Male Students", "Negative Male Students", 
+               "Total Female Students", "Positive Female Students", "Negative Female Students"),
+  Cases = c(total_of_students,total_of_positive_cases, total_of_negative_cases, 
+            total_of_Male_Students, total_of_Positive_Male_Students, total_of_negative_Male_student, 
+            total_of_Female_Students, total_of_Positive_Female_Students, total_of_negative_Female_student)
+)
+
+# Print
+#print(cases_data)
+cases_data
+
+```
+
+From the summary listed above it is possible to continue and divide the dataset appropriately to generate random sample that is well distributed among male, female, positive and negative cases from the study. By doing this we will are implementing the stratified random sampling method. To continue and do this, the next step is to define the proportions of each stratum.
+
+**Stratum Proportion:**
+```{r}
+# Get the Stratum Proportion per Gender and Positive or Negative Cases
+#Negative
+male_negative   <- total_of_negative_Male_student/total_of_students
+female_negative <- total_of_negative_Female_student/total_of_students
+
+#Positive
+male_positive   <- total_of_Positive_Male_Students/total_of_students
+female_positive <- total_of_Positive_Female_Students/total_of_students
+
+```
+
+```{r}
+# Cases Summary
+stratum_distribution <- data.frame(
+  Category = c("Positive Male", "Negative Male", "Positive Female","Negative Female"),
+  Cases    = c( male_positive,   male_negative,   female_positive,  female_negative)
+)
+
+stratum_distribution
+
+```
+
+
+
+## Stratified Random Sampling:
+
+Stratified simple sampling is a method of sampling that involves dividing a population into smaller groups, known as strata, that share similar characteristics. Within each stratum, a simple random sample is taken. This ensures that each subgroup is adequately represented in the overall sample, leading to more accurate and reliable results. It is particularly useful when there are distinct subgroups within a population that may have different behaviors or attributes. The main benefit of stratified sampling is that it increases the precision of the overall estimates by reducing sampling variability. This method also allows for more detailed subgroup analysis, providing insights into the characteristics and trends within each stratum.
+
+```{r}
+# Create a stratified sample based on Gender and Depression
+set.seed(2025)  # For reproducibility
+strata_columns <- c("Gender", "Depression")
+stratified_sample <- depression_dataset_cleaned %>%
+  group_by_at(strata_columns) %>%
+  sample_frac(size = 0.50)
+
+# Check the stratified sample
+#print(table(stratified_sample$Gender, stratified_sample$Depression))
+print(nrow(stratified_sample))
+```
+
+
+The stratification is applied to the columns Depression and Gender. This ensures that the sample is filtered through these columns, resulting in values that are a combination of these attributes, as previously shown. The sample size is half of the original dataset size. The decision to use 50% of the original size aims to have a sufficiently large dataset for further division between the training and testing sets for analysis. This way, we can still have a substantial amount of data to analyze, but it remains small enough to compute efficiently. Also, the code uses the “set.seed” command to set the create reproducibility allowing same results in different devices. The next step is to proceed to generate the two used dataset for training and for testing.
+
+
+## Split the dataset into training and testing:
+
+Splitting data is the action of dividing the working data in two parts:
+* Training set
+* Test set 
+Spliting data is a common practice in machine learning to evaluate the performance of a model. The training set is used to train the model, allowing it to learn patterns and relationships within the data. The test set, which is kept separate and not seen by the model during training, is used to assess the model's performance. This helps ensure that the model can generalize well to new, unseen data, and not just memorize the training data. The main benefit of this approach is that it provides a reliable estimate of the model's accuracy and robustness, helping to prevent overfitting and underfitting. The standard data split is 75% for training and 25% for testing.
+
+```{r}
+# Split the stratified sample into training and testing sets (75% training, 25% testing)
+trainIndex <- createDataPartition(stratified_sample$Depression, p = 0.75, list = FALSE)
+train_data <- stratified_sample[trainIndex,]
+test_data <- stratified_sample[-trainIndex,]
+
+original_data_set_percentage75 <- nrow(stratified_sample)*0.75
+original_data_set_percentage25 <- nrow(stratified_sample)*0.25
+  
+  # Check the splits
+# 75% of the stratified sample
+print (original_data_set_percentage75)
+print(nrow(train_data))   
+
+# 25% of the stratified sample
+print (original_data_set_percentage25)
+print(nrow(test_data))   
+```
+
+
+## Logistic Regression Model
+
+When using a logistic model, it is essential to consider a few key elements or conditions. The logistic model is appropriate when the response variable is binary, meaning it takes on values between 0 and 1. This is precisely what is needed for the analysis, as the response variable is 'Depression,' recorded as '0' and '1,' 'Yes' and 'No,' or 'True' and 'False.' Therefore, treating the response variable as binary makes the logistic model a suitable choice for this analysis.
+Another important factor to consider is how we evaluate the response variable. Although the values between 0 and 1 are continuous, for the sake of this analysis all values greater than 0.5 were assigned as '1' and all values less than or equal to 0.5 as '0.' This binary classification allows to use the logistic model effectively to analyze the data.
+
+One final element to consider is the appropriate classification of the variables (columns). It is crucial to treat these variables as intended. Specifically, columns that hold numeric values but represent categorical options should be converted to factors. Even though they contain numeric values, these numbers are merely grouped options, and thus, they need to be treated as factors for the model to accurately interpret and categorize them.
+
+## Full Logistice Model
+
+### 1.	Verify Columns Classification:
+
+
+```{r}
+str(train_data)
+```
+
+
+### 2.	Fit the model: 
+
+```{r}
+# Fit the logistic regression model
+
+# Convert categorical variables to factors
+train_data$Gender <- as.factor(train_data$Gender)
+train_data$Academic_Pressure <- as.factor(train_data$Academic_Pressure)
+train_data$Study_Satisfaction <- as.factor(train_data$Study_Satisfaction)
+train_data$Sleep_Duration <- as.factor(train_data$Sleep_Duration)
+train_data$Fam_Mental_Hist <- as.factor(train_data$Fam_Mental_Hist)
+train_data$Financial_stress <- as.factor(train_data$Financial_stress)
+train_data$Dietary_Habits <- as.factor(train_data$Dietary_Habits)
+train_data$Suicidal_Thoughts <- as.factor(train_data$Suicidal_Thoughts)
+train_data$Age_Group <- as.factor(train_data$Age_Group)
+train_data$Depression <- as.factor(train_data$Depression)
+
+logistic_Model <- glm(Depression ~.,data = train_data, family = binomial)
+
+# Summarize the model
+summary(logistic_Model)
+```
+
+### 3.	Verify multicollinearity:
+
+Multicollinearity occurs when predictors in a model are highly correlated with each other, which can lead to instability in the coefficient estimates and make it difficult to determine the individual effect of each predictor. That is why is important to keep record of it. The list below shows a brief interpretation of the relevance on multicollinearity. 
+
+•	VIF = 1: No correlation between the predictor and other predictors.
+•	1 < VIF < 5: Moderate correlation, typically not a cause for concern.
+•	VIF ≥ 5: High correlation, indicating significant multicollinearity.
+•	VIF > 10: Very high correlation, often considered a serious problem that requires correction.
+
+**Multicollinearity**
+```{r}
+library(car)
+vif(logistic_Model)
+```
+
+From the modeling fitting we notice that there are two predictors that are insignificant for the model. Therefore, we could potentially have two logistic models. 
+•	Original Model: that includes all the predictors 
+•	Reduce Model: that holds only the predictors that are significant
+The correspondent process for the original model had been done. The reduced model needs to also be loaded and verify its multicollinearity.
+
+## Reduced Logistic Model
+
+### 1. Fit the model without the CGPA Predictor / Gender
+
+```{r}
+# Fit the logistic regression model
+reduce_Logistic_Model <- glm(Depression ~ Academic_Pressure +  Study_Satisfaction + 
+                               Sleep_Duration + Dietary_Habits + Suicidal_Thoughts + 
+                              Study_Hours + Financial_stress + Fam_Mental_Hist + 
+                               Age_Group, data = train_data, family = binomial)
+
+# Summarize the model
+summary(reduce_Logistic_Model)
+```
+
+
+### 2. Verify multicollinearity
+
+```{r}
+library(car)
+vif(reduce_Logistic_Model)
+```
+
+From figure 18, we confirm that the predictors are not high correlated.
+
+
+## Logistic Regression Model Testing
+
+There are two available options: the original model, which includes the insignificant predictors Gender and CGPA, and a reduced model where these insignificant predictors had been removed. For the sake of the analysis, the next step involves applying both models and comparing their respective behaviors to highlight any interesting results.
+
+
+## Full Logistic model Model Testing
+
+Using the created full logistic model, the test dataset previously created its going to be used for this test.
+
+**Applying Logistic Model to Test Dataset**
+```{r}
+predictions <- predict(logistic_Model, newdata=test_data, type='response')
+pred_class <- ifelse(predictions >= 0.5, 1, 0)
+```
+
+**Create a confusion matrix**
+```{r}
+logistic_conf_matrix <- table(Predicted = pred_class, Actual = test_data$Depression)
+print(logistic_conf_matrix)
+```
+```{r}
+# Extract values from Confusion Matrix Logistic
+TN_logistic <- logistic_conf_matrix[1, 1]  # True Negatives
+FP_logistic <- logistic_conf_matrix[1, 2]  # False Positives
+FN_logistic <- logistic_conf_matrix[2, 1]  # False Negatives
+TP_logistic <- logistic_conf_matrix[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_logistic <- round((TP_logistic + TN_logistic) / (TP_logistic + TN_logistic + FP_logistic + FN_logistic), 4)
+precision_logistic <- round(TP_logistic / (TP_logistic + FP_logistic), 4)
+recall_logistic <- round(TP_logistic / (TP_logistic + FN_logistic), 4)
+f1_score_logistic <- round(2 * ((precision_logistic * recall_logistic) / (precision_logistic + recall_logistic)), 4)
+
+# Print Metrics
+cat("Logistic Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_logistic, "\n")
+cat("Precision:", precision_logistic, "\n")
+cat("Recall:", recall_logistic, "\n")
+cat("F1 Score:", f1_score_logistic,  "\n")
+```
+
+
+**Percentage of correct predictions**
+```{r}
+logistic_correct_predictions <- sum(diag(logistic_conf_matrix)) / sum(logistic_conf_matrix)
+print(paste("Overall Correct Predictions Percentages: ", logistic_correct_predictions))
+```
+
+The above results indicates thst out of the 3481 rows in the test dataset the model successfully predicted 2931 depression cases. Therefore 550 depression cases are false positive and false negative. The accuracy of this model is about 84.4%. In other words, 84.4% of the times, it predicts correctly.
+
+
+
+## Reduce Logistic Model Testing
+
+Following the same steps from the previous testing but in this case using the Reduce Logistic Model.
+
+**Applying Logistic Model to Test Dataset**
+```{r}
+predictions_reduce <- predict(reduce_Logistic_Model, newdata=test_data, type='response')
+pred_class_reduce <- ifelse(predictions_reduce >= 0.5, 1, 0)
+```
+
+**Create a confusion matrix**
+```{r}
+Predicted = pred_class_reduce
+Actual = test_data$Depression
+Rlogistic_conf_matrix <- table(Predicted,Actual )
+print(Rlogistic_conf_matrix)
+```
+```{r}
+# Extract values from Confusion Matrix
+TN_Rlogistic <- Rlogistic_conf_matrix[1, 1]  # True Negatives
+FP_Rlogistic <- Rlogistic_conf_matrix[1, 2]  # False Positives
+FN_Rlogistic <- Rlogistic_conf_matrix[2, 1]  # False Negatives
+TP_Rlogistic <- Rlogistic_conf_matrix[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_Rlogistic <- round((TP_Rlogistic + TN_Rlogistic) / (TP_Rlogistic + TN_Rlogistic + FP_Rlogistic + FN_Rlogistic), 4)
+precision_Rlogistic <- round(TP_Rlogistic / (TP_Rlogistic + FP_Rlogistic), 4)
+recall_Rlogistic <- round(TP_Rlogistic / (TP_Rlogistic + FN_Rlogistic), 4)
+f1_score_Rlogistic <- round(2 * ((precision_Rlogistic * recall_Rlogistic) / (precision_Rlogistic + recall_Rlogistic)), 4)
+
+# Print Metrics
+cat("Reduce Logistic Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_Rlogistic, "\n")
+cat("Precision:", precision_Rlogistic, "\n")
+cat("Recall:", recall_Rlogistic, "\n")
+cat("F1 Score:", f1_score_Rlogistic, "\n")
+```
+
+**Percentage of correct predictions**
+```{r}
+correct_predictions_reduce <- sum(diag(Rlogistic_conf_matrix)) / sum(Rlogistic_conf_matrix)
+print(paste("Overall Fraction of Correct Predictions: ", correct_predictions_reduce))
+```
+
+From the above results, we conclude that:
+
+•	Out of the 3481 rows in the test dataset the model successfully predicted 2934 depression cases. Therefore 547 depression cases are false positive and false negative.
+
+•	The accuracy of this model is about 84.3%. In other words, 84.3% of the times, it predicts correctly.
+
+
+
+## Accuracy for both Logistic and Reduced Logistic Models:
+
+After running the same test in both logistic models, it is easier to compare them and display an objective result:
+Figure 21 shows the comparison between the two logistic models. It is evident that the reduced model behaves better than the full model when evaluated or being used for prediction purposes. In addition, that, the reduce model is less complex having two less predictors making the reduced logistic model a better option for usage.
+
+
+**Compare Logistic Models:**
+```{r}
+# Create a data frame to store model performance
+model_results <- data.frame(
+  Model = c("Logistic Regression", "Reduce Logistic Model"),
+  Correct_rate_Predictors = c(
+    logistic_correct_predictions,
+    correct_predictions_reduce
+  )
+)
+
+# Display the results
+print(model_results)
+```
+
+
+The comparison between the two logistic models. It is evident that the original model behaves better than the reduced model when evaluated or being used for prediction purposes. However,  the reduce model is less complex having two less predictors. According to the needs of the user and the actual application of the model the decision of which model is better depended on the mentioned factor.
+
+
+## Linear Discriminant Analysis (LDA)
+Linear Discriminant Analysis (LDA) is a supervised machine learning technique used for classification and dimensionality reduction. It identifies a linear combination of features that optimally separates multiple classes by maximizing the ratio of between-class variance to within-class variance. LDA constructs the within-class scatter matrix, representing variations within each class, and the between-class scatter matrix, capturing differences between class means, to determine the most effective projection direction. Unlike Principal Component Analysis (PCA), which prioritizes variance, LDA preserves information crucial for distinguishing classes. It is widely applied in pattern recognition, medical diagnosis, and face recognition, though its effectiveness depends on the assumption that data is normally distributed with equal covariance across classes, which should be validated before use.LDA Requires some assumptions to meet:
+
+### 1. Normality:
+
+**Plot**
+```{r}
+## This Variable is the Sample 
+stratified_sample_positive <- stratified_sample[stratified_sample$Depression == 'Yes',]
+stratified_sample_negative <- stratified_sample[stratified_sample$Depression == 'No',]
+
+# Limit the size to a maximum of 5000 values
+stratified_sample_positive <- stratified_sample_positive[1:min(5000, nrow(stratified_sample_positive)), ]
+stratified_sample_negative <- stratified_sample_negative[1:min(5000, nrow(stratified_sample_negative)), ]
+```
+
+```{r}
+variables <- c("Gender",  "Academic_Pressure",  "CGPA", "Study_Satisfaction", "Sleep_Duration", "Dietary_Habits" ,  "Suicidal_Thoughts",  "Study_Hours",       
+               "Financial_stress",  "Fam_Mental_Hist",  "Depression",  "Age_Group")
+
+# Ensure variables are numeric before performing the Normality tests
+numeric_variables <- sapply(stratified_sample_positive[, variables], is.numeric)
+numeric_vars <- variables[numeric_variables]
+```
+
+**Q-Q Plots for Positive Values**
+```{r}
+par(mfrow = c(3,2))
+
+for (i in numeric_vars) {
+  if (is.numeric(stratified_sample_positive[[i]])) {
+    qqnorm(stratified_sample_positive[[i]])
+    qqline(stratified_sample_positive[[i]], col = "Red")
+  } else {
+    cat("Skipping non-numeric variable:", i, "\n")
+  }
+}
+```
+**Shapiro Test for Positive Values**
+```{r}
+
+
+# Perform Shapiro-Wilk test
+shapiro_results <- list()
+
+for (i in numeric_vars) {
+  shapiro_results[[i]] <- shapiro.test(stratified_sample_positive[[i]])
+  cat("Shapiro-Wilk test for", i, ":\n")
+  print(shapiro_results[[i]])
+  cat("\n")
+}
+
+```
+
+
+**Q-Q Plots for Negative Values**
+```{r}
+par(mfrow = c(3,2))
+
+for (i in numeric_vars) {
+  if (is.numeric(stratified_sample_negative[[i]])) {
+    qqnorm(stratified_sample_negative[[i]])
+    qqline(stratified_sample_negative[[i]], col = "Red")
+  } else {
+    cat("Skipping non-numeric variable:", i, "\n")
+  }
+}
+```
+**Shapiro Test for Negative Values**
+```{r}
+
+
+# Perform Shapiro-Wilk test
+shapiro_results <- list()
+
+for (i in numeric_vars) {
+  shapiro_results[[i]] <- shapiro.test(stratified_sample_negative[[i]])
+  cat("Shapiro-Wilk test for", i, ":\n")
+  print(shapiro_results[[i]])
+  cat("\n")
+}
+
+```
+
+From the result of both the QQ plot and the shapiro test we can see that the data is not normally distributed, Normality can be treated, it is possible to used log transformation. However we are analyzing how the models behabe first and in case that the LDA model performs best then the data tranformation will take place other wise it will be ignored. 
+
+
+
+2. **Fit LDA Model**
+```{r}
+lda_model <- lda(Depression ~., data = train_data)
+print(lda_model)
+```
+
+
+```{r}
+lda_predictions <- predict(lda_model, newdata = test_data)$class
+```
+
+
+```{r}
+lda_conf_matrix <-table( Predicted = lda_predictions, Actual =test_data$Depression)
+lda_conf_matrix
+```
+**Percentage of correct predictions**
+```{r}
+lda_correct_predictions <- sum(diag(lda_conf_matrix)) / sum(lda_conf_matrix)
+print(paste("Overall Correct Predictions Percentages: ", lda_correct_predictions))
+```
+
+
+**Model Performance**
+```{r}
+# Extract values from Confusion Matrix Lineal LDA
+TN_LDA <- lda_conf_matrix[1, 1]  # True Negatives
+FP_LDA <- lda_conf_matrix[1, 2]  # False Positives
+FN_LDA <- lda_conf_matrix[2, 1]  # False Negatives
+TP_LDA <- lda_conf_matrix[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_LDA <- round((TP_LDA + TN_LDA) / (TP_LDA + TN_LDA + FP_LDA + FN_LDA), 4)
+precision_LDA <- round(TP_LDA / (TP_LDA + FP_LDA), 4)
+recall_LDA <- round(TP_LDA / (TP_LDA + FN_LDA), 4)
+f1_score_LDA <- round(2 * ((precision_LDA * recall_LDA) / (precision_LDA + recall_LDA)), 4)
+
+# Print Metrics
+cat("LDA Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_LDA, "\n")
+cat("Precision:", precision_LDA, "\n")
+cat("Recall:", recall_LDA, "\n")
+cat("F1 Score:", f1_score_LDA, "\n")
+```
+
+From the results, we conclude that:
+•	Out of the 3481 rows in the test dataset the model successfully predicted 2930 depression cases. Therefore 551 depression cases are false positive and false negative.
+•	The accuracy of this model is about 84.17%. In other words, 84.2% of the times, it predicts correctly.
+
+
+## Quadratic Discriminant Analysis (QDA)
+
+Quadratic Discriminant Analysis (QDA) is a classification technique that assumes different covariance matrices for each class, allowing for more flexibility compared to Linear Discriminant Analysis (LDA). QDA models the probability distribution of each class using a multivariate normal distribution and then classifies new observations based on the likelihood of belonging to each class. This method is particularly useful when the decision boundaries between classes are nonlinear. The primary advantage of QDA is its ability to model complex relationships between features, but it requires a larger dataset to estimate the covariance matrices accurately and may be less stable with small sample sizes or highly collinear features.
+QDA does not care about the Factors elements all contrary it might affect the behavior of the model, therefore we can used a copy of the original clean data set that has not the factors changed integrated.
+
+```{r}
+str(depression_dataset_copy)
+```
+
+**Important note**:
+
+Quadratic Discriminant Analysis (QDA) is a classification technique that assumes different covariance matrices for each class, allowing for more flexibility compared to Linear Discriminant Analysis (LDA). QDA models the probability distribution of each class using a multivariate normal distribution and then classifies new observations based on the likelihood of belonging to each class. This method is particularly useful when the decision boundaries between classes are nonlinear. The primary advantage of QDA is its ability to model complex relationships between features, but it requires a larger dataset to estimate the covariance matrices accurately and may be less stable with small sample sizes or highly collinear features.
+
+Same as LDA, QDA needs to meet some data assumption from the model to perform accurate. These assumptions were examined during the LDA analysis. 
+
+•	Normality
+
+•	Linear independency
+
+•	Sufficient data
+
+From the LDA analysis all assumptions were meet. Moving on, for Quadratic Discriminant Analysis (QDA), the balance between variables is crucial. From the previous Exploratory Data Analysis (EDA), we gained insights into the data distribution and identified some important considerations regarding *Age Grouping*. Specifically, out of the four groups, two have minimal representation and hold almost no values compared to the other two groups. To maintain the integrity of the dataset, we will remove these two underrepresented groups. Additionally, as these groups are considered outliers, it is a good practice to eliminate them at this stage.
+
+
+**Drop the Age Group 3 and 4**
+```{r}
+depression_dataset_copy <- depression_dataset_copy[depression_dataset_copy$Age_Group != "group_3", ]
+depression_dataset_copy <- depression_dataset_copy[depression_dataset_copy$Age_Group != "group_4", ]
+```
+
+**Age Group Confirmation**
+```{r}
+
+age_Groups <- unique(depression_dataset_copy$Age_Group)
+print(age_Groups)
+```
+**Display the Dimensions of the update dataset**
+```{r}
+dim(depression_dataset_copy)
+```
+Picture XX shows that new dataset dimensions being reduced after removing the students from the group ages 3 and 4. The picture also shows that there are only 2 groups in the age grouping column.
+
+The next step for the QDA is to create a new dataset using stratification method this because QDA is sensible to the distribution, so it is important to keep in check the correct distribution of values for positive and negative cases.
+
+
+**Get the stratification Sample**
+```{r}
+#Total size 27834, 75% = 20875 (10438, 10437) , 25% = 6958
+set.seed(2025)
+index_quadratic <- sampling:::strata(depression_dataset_copy, stratanames = c('Depression'), size =c(10438, 10437), method = 'srswor')
+```
+
+
+**Separate and set the Stratification in TEsting and Training**
+```{r}
+training_quadratic  <- depression_dataset_copy[index_quadratic$ID_unit,]
+testing_quadratic <- depression_dataset_copy[- index_quadratic$ID_unit,]
+```
+
+**New Datasets Dimensions**
+```{r}
+# Training
+dim(training_quadratic)
+table(training_quadratic$Depression)
+
+
+# Testing
+#dim(testing_quadratic)
+#table(testing_quadratic$Depression)
+```
+
+### The next step then is to load the QDA model with the training dataset:
+
+**1. Fit the QDA Model**
+```{r}
+
+quadratic_model<- qda(Depression ~. , data = training_quadratic)
+
+```
+
+After having the QDA model it is ready to test with  test data:
+
+**2. Create a confusion matrix**
+```{r}
+qda_predictions <- predict(quadratic_model, newdata = testing_quadratic)$class
+qda_conf_matrix <-table( Predicted = qda_predictions, Actual =testing_quadratic$Depression)
+qda_conf_matrix
+```
+
+
+```{r}
+# Extract values from Confusion Matrix
+TN_QDA <- qda_conf_matrix[1, 1]  # True Negatives
+FP_QDA <- qda_conf_matrix[1, 2]  # False Positives
+FN_QDA <- qda_conf_matrix[2, 1]  # False Negatives
+TP_QDA <- qda_conf_matrix[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_QDA <- round((TP_QDA + TN_QDA) / (TP_QDA + TN_QDA + FP_QDA + FN_QDA), 4)
+precision_QDA <- round(TP_QDA / (TP_QDA + FP_QDA), 4)
+recall_QDA <- round(TP_QDA / (TP_QDA + FN_QDA), 4)
+f1_score_QDA <- round(2 * ((precision_QDA * recall_QDA) / (precision_QDA + recall_QDA)), 4)
+
+# Print Metrics
+cat("QDA Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_QDA, "\n")
+cat("Precision:", precision_QDA, "\n")
+cat("Recall:", recall_QDA, "\n")
+cat("F1 Score:", f1_score_QDA, "\n")
+```
+
+**3. Percentage of correct predictions**
+```{r}
+qda_correct_predictions <- sum(diag(qda_conf_matrix)) / sum(qda_conf_matrix)
+print(paste("Overall Correct Predictions Percentages: ", qda_correct_predictions))
+```
+
+From the results, we conclude that:
+
+•	Out of the 6959 rows in the test dataset the model successfully predicted 5807 depression cases. Therefore 1152 depression cases are false positive and false negative.
+
+•	The accuracy of this model is about 83.44%. In other words, 83.4% of the times, it predicts correctly.
+
+
+
+## Regression Tree Model
+
+A tree model, also known as a decision tree, is a machine learning algorithm used for classification and regression tasks. It works by recursively splitting the data into subsets based on the values of input features, creating a tree-like structure of decisions. Each internal node represents a decision based on a feature, each branch represents the outcome of the decision, and each leaf node represents a predicted outcome or class. The main advantages of tree models are their interpretability and simplicity, as they mimic human decision-making processes. They are also non-parametric, meaning they do not assume any underlying distribution of the data, making them versatile and effective for various types of data.
+
+Same as previous models we load the model using the training data to verify its accuaracy percantage.
+
+ **1. Applying Tree Model to Test Dataset**
+```{r}
+tree_Model <- rpart(Depression ~ ., data = train_data, method = "class")
+rpart.plot(tree_Model, main = "Regression Tree")
+```
+From the model representation it is possible to notice that there are 3 main categories that the model uses to generate the dessicions. 
+* Suicidal Thoughts
+* Academic_preasure
+* Financial Stress
+
+
+**2. Create a confusion matrix**
+```{r}
+tree_predictions<-predict(tree_Model,test_data,type = "class")# class means classification
+tree_conf_matrix <-table(tree_predictions,test_data$Depression)
+tree_conf_matrix
+```
+
+
+```{r}
+# Extract values from Confusion Matrix
+TN_tree <- tree_conf_matrix[1, 1]  # True Negatives
+FP_tree <- tree_conf_matrix[1, 2]  # False Positives
+FN_tree <- tree_conf_matrix[2, 1]  # False Negatives
+TP_tree <- tree_conf_matrix[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_tree <- round((TP_tree + TN_tree) / (TP_tree + TN_tree + FP_tree + FN_tree), 4)
+precision_tree <- round(TP_tree / (TP_tree + FP_tree), 4)
+recall_tree <- round(TP_tree / (TP_tree + FN_tree), 4)
+f1_score_tree <- round(2 * ((precision_tree * recall_tree) / (precision_tree + recall_tree)), 4)
+
+# Print Metrics
+cat("Decision Tree Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_tree, "\n")
+cat("Precision:", precision_tree, "\n")
+cat("Recall:", recall_tree, "\n")
+cat("F1 Score:", f1_score_tree, "\n")
+
+
+```
+
+**3. Percentage of correct predictions**
+```{r}
+tree_correct_predictions <- sum(diag(tree_conf_matrix)) / sum(tree_conf_matrix)
+print(paste("Overall Correct Predictions Percentages: ", tree_correct_predictions))
+```
+From the results, we conclude that:
+
+•	Out of the 3481 rows in the test dataset the model successfully predicted 2805 depression cases. Therefore 676 depression cases are false positive and false negative.
+
+•	The accuracy of this model is about 80.58%. In other words, 80.6% of the times, it predicts correctly.
+
+
+
+## Random Forest Model
+
+A Random Forest is an ensemble learning method used for classification and regression tasks. It operates by constructing multiple decision trees during training and outputting the mode of the classes (classification) or mean prediction (regression) of the individual trees. This approach enhances the accuracy and robustness of the model by reducing overfitting.
+
+The output of a Random Forest model includes the predicted values and an assessment of variable importance. The variable importance plot shows which features contribute the most to the prediction, providing insights into the underlying patterns in the data. In addition to that, same as Tree model, the do not require stringent assumptions about the data, such as normality or linear relationships. It can handle both numerical and categorical features, manage missing values, and is resistant to overfitting due to its ensemble nature.
+
+
+**Splitting the data**
+```{r}
+# Ensure 'Depression' is a factor
+stratified_sample$Depression <- as.factor(stratified_sample$Depression)
+
+# Split data using stratified sampling (75% training, 25% testing)
+set.seed(2025)
+trainIndex <- createDataPartition(stratified_sample$Depression, p = 0.75, list = FALSE)
+train_data <- stratified_sample[trainIndex, ]
+test_data <- stratified_sample[-trainIndex, ]
+```
+
+**Fit model**
+```{r}
+# Train Random Forest Model
+set.seed(2025)
+random_model <- randomForest(Depression ~ ., data = train_data, ntree = 500, mtry = 3, importance = TRUE)
+
+# Print Model Summary
+print(random_model)
+
+# Make Predictions
+random_predictions <- predict(random_model, newdata = test_data)
+
+# Ensure factor levels match
+random_predictions <- factor(random_predictions, levels = levels(test_data$Depression))
+
+# Compute Confusion Matrix
+random_conf_matrix <- confusionMatrix(random_predictions, test_data$Depression)
+print(random_conf_matrix)
+
+```
+```{r}
+# Extract values from Confusion Matrix
+TN_random <- random_conf_matrix$table[1, 1]  # True Negatives
+FP_random <- random_conf_matrix$table[1, 2]  # False Positives
+FN_random <- random_conf_matrix$table[2, 1]  # False Negatives
+TP_random <- random_conf_matrix$table[2, 2]  # True Positives
+
+# Compute Performance Metrics
+accuracy_random <- round((TP_random + TN_random) / (TP_random + TN_random + FP_random + FN_random),4)
+precision_random <- round(TP_random / (TP_random + FP_random), 4)
+recall_random <- round(TP_random / (TP_random + FN_random), 4)
+f1_score_random <- round(2 * ((precision_random * recall_random) / (precision_random + recall_random)), 4)
+
+# Print Metrics
+cat("Random Forest Model Performance Metrics:\n")
+cat("Model Accuracy:", accuracy_random, "\n")
+cat("Precision:", precision_random, "\n")
+cat("Recall:", recall_random, "\n")
+cat("F1 Score:",f1_score_random,"\n")
+```
+
+From the results, we conclude that:
+•	Out of the 3481 rows in the test dataset the model successfully predicted 2920 depression cases. Therefore 561 depression cases are false positive and false negative.
+•	The accuracy of this model is about 83.88%. In other words, 83.9% of the times, it predicts correctly.
+
+
+# Models Performance
+
+In the field of mental health analytics, predicting depression based on various psychological, social, and lifestyle factors is a crucial challenge. Machine learning models provide a powerful approach to analyzing complex patterns in depression-related data. However, selecting the best model requires evaluating multiple algorithms based on key performance metrics such as accuracy, precision, recall, and F1-score.
+
+This study compares five machine learning models—Logistic Regression, Random Forest, Decision Tree, Linear Discriminant Analysis (LDA), and Quadratic Discriminant Analysis (QDA)—to determine which model is best suited for depression prediction. Each model is trained and tested using a structured dataset containing features such as academic pressure, sleep duration, dietary habits, suicidal thoughts, study hours, financial stress, and family mental health history.
+
+The performance of each model is evaluated using four critical metrics:
+
+* Accuracy: Measures the overall correctness of the model.
+* Precision: Evaluates how many predicted positive cases are actually positive.
+* Recall (Sensitivity): Measures the model’s ability to identify true positive cases.
+* F1-Score: Balances precision and recall to assess the model's reliability.
+
+By comparing these metrics, we aim to determine which model provides the most reliable predictions for identifying individuals at risk of depression. The findings from this analysis will help in selecting an optimal model for real-world applications in mental health screening and early intervention.
+
+
+```{r}
+# Create dataframes to hold confusion matrices
+confusion_matrices <- data.frame(
+  Model = c("Logistic", "Reduce Logistic", "LDA", "QDA", "Random Forest", "Decision Tree"),
+  TN = c(TN_logistic, TN_Rlogistic, TN_LDA, TN_QDA, TN_random, TN_tree),
+  FP = c(FP_logistic, FP_Rlogistic, FP_LDA, FP_QDA, FP_random, FP_tree),
+  FN = c(FN_logistic, FN_Rlogistic, FN_LDA, FN_QDA, FN_random, FN_tree),
+  TP = c(TP_logistic, TP_Rlogistic, TP_LDA, TP_QDA, TP_random, TP_tree)
+)
+
+# Create dataframes to hold performance metrics
+performance_metrics <- data.frame(
+  Model = c("Logistic", "Reduce Logistic", "LDA", "QDA", "Random Forest", "Decision Tree"),
+  Accuracy = c(accuracy_logistic, accuracy_Rlogistic, accuracy_LDA, accuracy_QDA, accuracy_random, accuracy_tree),
+  Precision = c(precision_logistic, precision_Rlogistic, precision_LDA, precision_QDA, precision_random, precision_tree),
+  Recall = c(recall_logistic, recall_Rlogistic, recall_LDA, recall_QDA, recall_random, recall_tree),
+  F1_Score = c(f1_score_logistic, f1_score_Rlogistic, f1_score_LDA, f1_score_QDA, f1_score_random, f1_score_tree)
+)
+
+# Print dataframes
+print(confusion_matrices)
+print(performance_metrics)
+
+```
+
+Overall, the Logistic Model is the most balanced and accurate, but the Reduce Logistic Model and LDA are strong alternatives. The QDA model excels in recall, making it a good choice if the priority is to minimize false negatives. Quadratic Discriminant Analysis (QDA) shows good recall, it struggles with precision, making it less optimal for ensuring accurate positive classifications. Decision Tree, on the other hand, performs the worst due to its low recall and F1-score, leading to a higher rate of misclassification. 
+These findings suggest that LDA is the most suitable model for practical applications in mental health prediction, providing a strong foundation for decision-making in early detection and intervention strategies. However, further improvements such as feature selection, hyperparameter tuning, or ensemble methods could enhance model performance, leading to more refined and accurate depression predictions.
+
+# Conclusion:
+In conclusion the dataset yields several key insights into the factors influencing student mental health. Among the predictive models tested, the Logistic Model, Reduced Logistic Model, and Linear Discriminant Analysis (LDA) demonstrated strong predictive performance, with the Logistic Model achieving the highest accuracy. The Quadratic Discriminant Analysis (QDA) model was particularly effective in identifying true cases of depression due to its high recall rate. Our analysis highlighted three primary factors that significantly contributed to depression predictions: suicidal thoughts, academic pressure, and financial stress. Students exhibiting suicidal ideation, experiencing high academic pressure, or facing financial instability were at the highest risk of expressing depression. Additionally, other variables, including unhealthy dietary habits, insufficient sleep, age, gender, study hours, and study satisfaction, also played a role in predicting depression. The data indicated that younger students, male students, and those experiencing high academic or financial stress were more vulnerable to depression.
+However, a key limitation of this study is that the linearity assumption was not fully met, which may affect the interpretation of some model results. Future research should explore non-linear modeling approaches to enhance predictive accuracy. Despite this limitation, our findings provide valuable insights into the multifaceted nature of student mental health and underscore the importance of targeted interventions to mitigate depression risks. While further research is necessary for a more comprehensive understanding, these findings suggest that mental health interventions tailored to high-risk groups particularly those struggling with financial stress, academic pressure, or suicidal ideation could be instrumental in effectively managing and reducing depression among students.
+
+
+
